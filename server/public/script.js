@@ -1,24 +1,22 @@
 const fetchTemperature = () => {
   fetch('/temperature')
       .then(results => {
-        return results.text()
+        return results.json()
       })
-      .then(text => {
-        const temperatureDisplay =
-            document.getElementById('temperature-display')
-        temperatureDisplay.innerHTML = text
+      .then(data => {
+        const temperatureDisplay = document.getElementById('temperature-display')
+        temperatureDisplay.innerHTML = '<strong>' + data.value + '</strong>'
       })
 }
 
 const fetchHumidity = () => {
   fetch('/humidity')
       .then(results => {
-        return results.text()
+        return results.json()
       })
-      .then(text => {
-        const temperatureDisplay =
-            document.getElementById('humidity-display')
-        temperatureDisplay.innerHTML = text
+      .then(data => {
+        const humidityDisplay = document.getElementById('humidity-display')
+        humidityDisplay.innerHTML = '<strong>' + data.value + '</strong>'
       })
 }
 
@@ -36,7 +34,7 @@ const temperatureCanvasCtx =
 /**
  * Create a new chart on the context we just instantiated
  */
-const temperatureChart =newChart(temperatureCanvasCtx,
+const temperatureChart = new Chart(temperatureCanvasCtx,
     {
       /**
        * Were going to show the ongoing temperature as a line chart
