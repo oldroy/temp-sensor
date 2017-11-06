@@ -1,6 +1,6 @@
 const express = require('express')
 const getCachedSensorReadings = require('./get-cached-sensor-readings')
-const databaseOperation = require('./database-operations')
+const databaseOperations = require('./database-operations')
 const path = require('path')
 const app = express()
 
@@ -15,7 +15,7 @@ app.get('/humidity', function(req, res) {
 })
 
 app.get('/temperature/history', function(req, res) {
-  databaseOperation.fetchLatestReadings('temperature', 10, (err, results) => {
+  databaseOperations.fetchLatestReadings('temperature', 10, (err, results) => {
     if(err) {
       console.error(err)
       return res.status(500).end()
@@ -34,8 +34,92 @@ app.get('/humidity/history',function(req, res) {
   })
 })
 
-// add /humidity/history
-
-app.listen(3000, function() {
-  console.log('Server running on port 3000')
+app.get('/temperature/range', function(req, res) {
+  const {start, end} = req.query
+  databaseOperations.fetchReadingsBetweenTime('temperature', start, end, (err, results) => {
+    if(err) {
+      console.error(err)
+      return res.status(500).end()
+    }
+      res.json(results)
+  })
 })
+
+app.get('/temperature/average', function(req, res) {
+  const {start, end} = req.query
+  databaseOperations.getAverageOfReadingsBetweenTime('temperature', start, end, (err, results) => {
+    if (err) {
+      console.error(err)
+      return res.status(500).end()
+    }
+    res.json({value: results['avg(value)'].toFixed(1)}
+    )
+  })
+})
+
+
+/**
+ * Import the external dependencies required, for us this is:
+ * 1. The native http module
+ * 2. The socket.io module that we installed
+ * 3. THe subscribe and unsibscribe functions from the notifier module
+ */
+const http = require('http')
+const socketIo = require('socket.io')
+const {subscribe, unsubscribe} = require('./notifier')
+
+/**
+ * Create a new HTTP server that wraps the "app" object that defined our server
+ */
+const httpServer = http.Server(app)
+
+/**
+ * Socket.io implements its own routes on top of the existing ones by wrapping our HTTP server
+ */
+const io = socketIo(httpServer)
+
+io.on('connection', socket => {
+  /**
+   * This callback is called everytime a new client successfully makes a websocket connection with our server
+   */
+  console.log(`User connected [${socket.id}]`)
+
+  /**
+   * The event listeners are defined inside the callback function because we need to access the "socket" instance, to emit changes to the client
+   * The "pushTemperature" and "pushHumidity" listeners are called on change of temperature and humidity respectively.
+   */
+  const pushTemperature = newTemperature => {
+    socket.emit('new-temperature', {
+      value: newTemperature
+    })
+  }
+
+  const pushHumidity = newHumidity => {
+    socket.emit('new-humidity', {
+      value: newHumidity
+    })
+  }
+
+  /**
+   * Subscribe the listeners that we just defined to the "temperature" and "humidity" events
+   */
+  subscribe(pushTemperature, 'temperature')
+
+  subscribe(pushHumidity, 'humidity')
+
+  socket.on('disconnect', () => {
+    /**
+     * Finally, when the connection is closed, unsibscribe the listeners from their events
+     */
+    unsubscribe(pushTemperature, 'temperature')
+    unsubscribe(pushHumidity, 'humidity')
+  })
+})
+
+/**
+ * The httpsServer.listen method is called. This exposes the routes we defined for the "app" instance as well
+ */
+httpServer.listen(3000, function () {
+  console.log('Server listening on port 3000')
+})
+
